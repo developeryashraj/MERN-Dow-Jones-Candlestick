@@ -1,5 +1,7 @@
 var express = require("express");
 var router = express.Router();
+var dateUtil = require("../../utils/date");
+// import getDateRangeOfWeek from "../../utils/date";
 
 var MongoClient = require("mongodb").MongoClient;
 var historicalPricesCollection = "";
@@ -54,6 +56,72 @@ router.post("/dailyCandleData", async function (req, res, next) {
     .toArray();
 
   res.send({ status: 1, data: data });
+});
+
+router.post("/weeklyCandleData", async function (req, res, next) {
+  const { year = "", weekNumber = "" } = req.body;
+
+  if (!year) {
+    res.send({ status: 2, message: "Please enter a year" });
+  }
+  if (!weekNumber) {
+    res.send({
+      status: 2,
+      message: "Please enter a Week of the year (max 53)",
+    });
+  }
+  if (weekNumber > 53) {
+    res.send({
+      status: 2,
+      message: "Years can have max 53 weeks. Lower your week number",
+    });
+  }
+
+  const { rangeIsFrom: fromDate, rangeIsTo: toDate } =
+    dateUtil.getDateRangeOfWeek(weekNumber, year);
+
+  // res.send({ fromDate, toDate });
+  const formatedFromDate = new Date(fromDate);
+  const formatedToDate = new Date(toDate);
+
+  const query = {
+    Date: { $gte: formatedFromDate, $lte: formatedToDate },
+  };
+  const options = {
+    sort: { Date: 1, _id: 1 },
+  };
+
+  const data = await historicalPricesCollection.find(query, options).toArray();
+
+  const response = {
+    fromDate: fromDate,
+    toDate: toDate,
+    openValue: "",
+    closeValue: "",
+    highValue: "",
+    lowValue: "",
+    data: data,
+  };
+
+  data.map((item, index) => {
+    if (index === 0) {
+      response.openValue = item.Open;
+    }
+
+    if (index === data.length - 1) {
+      response.closeValue = item.Close;
+    }
+    response.highValue =
+      response.highValue === "" || item.High > response.highValue
+        ? item.High
+        : response.highValue;
+    response.lowValue =
+      response.lowValue === "" || item.Low < response.lowValue
+        ? item.Low
+        : response.lowValue;
+  });
+
+  res.send({ status: 1, data: response });
 });
 
 module.exports = router;
