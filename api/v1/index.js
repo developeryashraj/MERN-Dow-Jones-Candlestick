@@ -174,4 +174,54 @@ router.post("/weeklyCandleData", async function (req, res, next) {
   }
 });
 
+router.post("/getXDeclined", async function (req, res, next) {
+  const { fromDate = "", toDate = "", percentage = "" } = req.body;
+
+  if (!fromDate || !toDate) {
+    res.send({ status: 2, message: "Please enter a valid date range" });
+  }
+
+  const formatedFromDate = new Date(fromDate);
+  const formatedToDate = new Date(toDate);
+  if (formatedFromDate > formatedToDate) {
+    res.send({
+      status: 2,
+      message: "From date can not be higher then To date",
+    });
+  }
+
+  if (!percentage || percentage < 0) {
+    res.send({
+      status: 2,
+      message: "Please enter percentage greater than 0",
+    });
+  }
+
+  const query = {
+    Date: { $gte: formatedFromDate, $lte: formatedToDate },
+  };
+  const options = {
+    sort: { Date: 1, _id: 1 },
+  };
+
+  const data = await historicalPricesCollection.find(query, options).toArray();
+
+  const filterdData = data.filter((item, index) => {
+    const previousDateClose = (index > 0 && data[index - 1].Close) || 0;
+    const currentDateClose = item.Close;
+    if (currentDateClose < previousDateClose && previousDateClose > 0) {
+      const calculatePercentage = (
+        ((previousDateClose - currentDateClose) / previousDateClose) *
+        100
+      ).toFixed(2);
+      // console.log(calculatePercentage, previousDateClose, currentDateClose);
+      if (calculatePercentage > percentage) {
+        return item;
+      }
+    }
+  });
+
+  res.send({ status: 1, data: filterdData });
+});
+
 module.exports = router;
