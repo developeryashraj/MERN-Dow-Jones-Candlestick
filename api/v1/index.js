@@ -30,12 +30,18 @@ router.post("/dailyCandleData", async function (req, res, next) {
   if (!fromDate || !toDate) {
     res.send({ status: 2, message: "Please enter a valid date range" });
   }
-  if (fromDate > toDate) {
-    res.send({ status: 2, message: "From date can not be higer then To date" });
+
+  const formatedFromDate = new Date(fromDate);
+  const formatedToDate = new Date(toDate);
+  if (formatedFromDate > formatedToDate) {
+    res.send({
+      status: 2,
+      message: "From date can not be higher then To date",
+    });
   }
 
   const query = {
-    Date: { $gte: fromDate, $lt: toDate },
+    Date: { $gte: formatedFromDate, $lte: formatedToDate },
   };
   const options = {
     sort: { Date: 1, _id: 1 },
@@ -47,7 +53,7 @@ router.post("/dailyCandleData", async function (req, res, next) {
     .limit(limit)
     .toArray();
 
-  res.send(data);
+  res.send({ status: 1, data: data });
 });
 
 module.exports = router;
