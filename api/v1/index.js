@@ -59,7 +59,7 @@ router.post("/dailyCandleData", async function (req, res, next) {
 });
 
 router.post("/weeklyCandleData", async function (req, res, next) {
-  const { year = "", weekNumber = "" } = req.body;
+  const { year = "", weekNumber = "", runWithMongoOnly = true } = req.body;
 
   if (!year) {
     res.send({ status: 2, message: "Please enter a year" });
@@ -84,44 +84,94 @@ router.post("/weeklyCandleData", async function (req, res, next) {
   const formatedFromDate = new Date(fromDate);
   const formatedToDate = new Date(toDate);
 
-  const query = {
-    Date: { $gte: formatedFromDate, $lte: formatedToDate },
-  };
-  const options = {
-    sort: { Date: 1, _id: 1 },
-  };
+  if (runWithMongoOnly) {
+    // This is the mongo way
+    const aggr = [
+      {
+        $match: {
+          Date: {
+            $gte: formatedFromDate,
+            $lte: formatedToDate,
+          },
+        },
+      },
+      {
+        $sort: {
+          Date: 1,
+          _id: 1,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          openValue: {
+            $first: "$Open",
+          },
+          closeValue: {
+            $last: "$Close",
+          },
+          highValue: {
+            $max: "$High",
+          },
+          lowValue: {
+            $min: "$Low",
+          },
+        },
+      },
+    ];
 
-  const data = await historicalPricesCollection.find(query, options).toArray();
+    const data = await historicalPricesCollection.aggregate(aggr).toArray();
+    const dataJSON = data && data.length > 0 && data[0];
+    delete dataJSON["_id"];
+    const response = {
+      fromDate: fromDate,
+      toDate: toDate,
+      ...data[0],
+    };
+    res.send({ status: 1, data: response });
+  } else {
+    // Normal Vanilla way
+    const query = {
+      Date: { $gte: formatedFromDate, $lte: formatedToDate },
+    };
+    const options = {
+      sort: { Date: 1, _id: 1 },
+    };
 
-  const response = {
-    fromDate: fromDate,
-    toDate: toDate,
-    openValue: "",
-    closeValue: "",
-    highValue: "",
-    lowValue: "",
-    data: data,
-  };
+    const data = await historicalPricesCollection
+      .find(query, options)
+      .toArray();
 
-  data.map((item, index) => {
-    if (index === 0) {
-      response.openValue = item.Open;
-    }
+    const response = {
+      fromDate: fromDate,
+      toDate: toDate,
+      openValue: "",
+      closeValue: "",
+      highValue: "",
+      lowValue: "",
+      data: data,
+    };
 
-    if (index === data.length - 1) {
-      response.closeValue = item.Close;
-    }
-    response.highValue =
-      response.highValue === "" || item.High > response.highValue
-        ? item.High
-        : response.highValue;
-    response.lowValue =
-      response.lowValue === "" || item.Low < response.lowValue
-        ? item.Low
-        : response.lowValue;
-  });
+    data.map((item, index) => {
+      if (index === 0) {
+        response.openValue = item.Open;
+      }
 
-  res.send({ status: 1, data: response });
+      if (index === data.length - 1) {
+        response.closeValue = item.Close;
+      }
+      response.highValue =
+        response.highValue === "" || item.High > response.highValue
+          ? item.High
+          : response.highValue;
+      response.lowValue =
+        response.lowValue === "" || item.Low < response.lowValue
+          ? item.Low
+          : response.lowValue;
+    });
+
+    res.send({ status: 1, data: response });
+  }
 });
 
 module.exports = router;

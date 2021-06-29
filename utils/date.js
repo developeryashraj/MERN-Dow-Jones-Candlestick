@@ -26,8 +26,7 @@ function getDateRangeOfWeek(weekNo, y) {
 
   d1.setDate(d1.getDate() - numOfdaysPastSinceLastMonday);
 
-  //   d1.setDate(d1.getDate() + 7 * (weekNo - d1.getWeek()));
-  d1.setDate(d1.getDate() + 7 * weekNo);
+  d1.setDate(d1.getDate() + 7 * (weekNo - 1));
   rangeIsFrom = d1.getMonth() + 1 + "-" + d1.getDate() + "-" + d1.getFullYear();
   d1.setDate(d1.getDate() + 6);
   rangeIsTo = d1.getMonth() + 1 + "-" + d1.getDate() + "-" + d1.getFullYear();
